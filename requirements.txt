@@ -1,0 +1,6 @@
+langchain
+openai
+streamlit
+torch
+youtube-transcript-api
+faiss-cpu
