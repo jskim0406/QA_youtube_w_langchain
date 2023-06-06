@@ -1,5 +1,5 @@
-import argparse
 import streamlit as st 
+import databutton as db
 from langchain.llms import OpenAI
 from langchain.chains import RetrievalQA
 
@@ -10,7 +10,6 @@ from langchain.docstore.document import Document
 from langchain.vectorstores import FAISS
 
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings import HuggingFaceEmbeddings
 
 
 def text_custom(font_size, text):
@@ -33,16 +32,23 @@ def main():
     st.markdown("""<style>.b-font {font-size:25px !important;}</style>""", unsafe_allow_html=True)    
     st.markdown("""<style>.m-font {font-size:20px !important;}</style>""" , unsafe_allow_html=True)    
     st.markdown("""<style>.s-font {font-size:15px !important;}</style>""" , unsafe_allow_html=True)    
-    tabs_font_css = """<style>div[class*="stTextInput"] label {font-size: 15px;color: white;}</style>"""
+    tabs_font_css = """<style>div[class*="stTextInput"] label {font-size: 15px;color: black;}</style>"""
     st.write(tabs_font_css, unsafe_allow_html=True)
 
     st.title("Youtube QA Bot")
-    t = "Watch all Youtube videos... Sometimes it's hard, right? Just throw us a URL and ask. We'll answer anything. 😋"
+    t = "Watch all Youtube videos... Sometimes it's hard, right? Just throw us a URL and ask. I'll answer anything. 😋"
     st.markdown(text_custom('m', t), unsafe_allow_html=True)
+    st.info('Note: This youtube video itself should have transcript', icon="ℹ️")
+
+    api_key = st.text_input(
+        "Enter Open AI Key.",
+        placeholder = "sk-...",
+        type="password"
+    )
 
     user_in_url = st.text_input(
         "Please enter Youtube URL.",
-        placeholder = "https://www.youtube.com/watch?v=reUZRyXxUs4&t=1s",
+        value = "https://www.youtube.com/watch?v=o8NPllzkFhE",
     )
 
     if user_in_url:
@@ -51,26 +57,15 @@ def main():
         _, container, _ = st.columns([side, width, side])
         container.video(data=user_in_url)
 
-        t = "Good. From now on, Let's activate the 'Question Answering Bot 🤖' for this YouTube video."
-        st.markdown(text_custom('m', t), unsafe_allow_html=True)
-
-    user_in_lang = st.text_input(
-        "Tell us what language the Youtube video is in (please enter 'ko' for Korean and 'en' for English).",
-        placeholder = "en",
-    )
-
     user_question = st.text_input(
             "Please enter your questions in the video.",
-            placeholder = "How AI Could Empower Any Business?"
-    )
-    
-
-    api_key = st.text_input(
-        "Enter Open AI Key.",
-        placeholder = "sk-...",
-        type="password"
+            placeholder = "What is the Linux and Why it is created?"
     )
 
+    user_in_lang = st.text_input(
+        "Tell us what language the Youtube video is in (For example.. enter 'en' for English or 'ko' for Korean).",
+        value = "en",
+    )    
 
     with st.sidebar:
         embeddeing_model = st.selectbox(
@@ -100,11 +95,8 @@ def main():
 
         st.markdown(
             """
-            **Blog post:** \n
-            [*Blog title*](URL)
-
-            **Code:** \n
-            [*Github*](https://github.com/jskim0406/SimpleRec_w_langchain.git)
+            **Code:**
+            [*Github Repo*](https://github.com/jskim0406/QA_youtube_w_langchain)
             """
         )
 
@@ -118,6 +110,7 @@ def main():
         # 참고: https://python.langchain.com/en/latest/modules/indexes/document_loaders.html
         documents = YoutubeLoader.from_youtube_url(user_in_url, language=user_in_lang).load()
 
+
         # 2. text preprocessing(Chunking)
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=800,
@@ -127,6 +120,7 @@ def main():
         docs=text_splitter.split_text(documents[0].page_content)
         new_docs = [Document(page_content=chunk) for chunk in docs]
         
+
         # 3. define embedding model & provider
         embeddings = OpenAIEmbeddings(openai_api_key=API, model=embeddeing_model)
         
@@ -137,15 +131,19 @@ def main():
         retriever = db.as_retriever()
 
         qa = RetrievalQA.from_chain_type(
-            llm=OpenAI(openai_api_key=API, model=llm_model, temperature=temperature),
+            llm=OpenAI(openai_api_key=API, 
+                       model=llm_model, 
+                       temperature=temperature, 
+                       verbose=True),
             chain_type=chain, 
             retriever=retriever, 
-            return_source_documents=True)
-
-        query = user_question
-        result = qa({"query": query})
-
-        st.success(result['result'])
+            return_source_documents=True,
+            verbose=True)
+         
+        with st.spinner("Running to answer your question .."):
+            query = user_question
+            result = qa({"query": user_question})
+            st.success(result['result'])
 
 
 if __name__=='__main__':
